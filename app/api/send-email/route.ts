@@ -1,5 +1,9 @@
-import { sendEmail } from "@/lib/email";
-import { emailConfirmationTemplate } from "@/lib/email-templates";
+// app/api/send-email/route.ts (or wherever it lives)
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";   // THIS IS REQUIRED
+
+import { Response } from "next/dist/compiled/@edge-runtime/primitives"; // fallback if needed
 
 export async function POST(request: Request) {
   try {
@@ -13,35 +17,38 @@ export async function POST(request: Request) {
       );
     }
 
+    // LAZY LOAD sendEmail AND ALL TEMPLATES — ONLY WHEN CALLED
+    const [
+      { sendEmail },
+      {
+        welcomeEmailTemplate,
+        emailConfirmationTemplate,
+        passwordResetTemplate,
+        jobApplicationConfirmationTemplate,
+        interviewInvitationTemplate,
+        jobOfferTemplate,
+      },
+    ] = await Promise.all([
+      import("@/lib/email"),
+      import("@/lib/email-templates"),
+    ]);
+
     let html = "";
 
-    // Select template based on type
     switch (templateType) {
       case "welcome":
-        const { welcomeEmailTemplate } = await import(
-          "@/lib/email-templates"
-        );
         html = welcomeEmailTemplate(data.userName, data.dashboardUrl);
         break;
 
       case "email-confirmation":
-        html = emailConfirmationTemplate(
-          data.userName,
-          data.confirmationUrl
-        );
+        html = emailConfirmationTemplate(data.userName, data.confirmationUrl);
         break;
 
       case "password-reset":
-        const { passwordResetTemplate } = await import(
-          "@/lib/email-templates"
-        );
         html = passwordResetTemplate(data.userName, data.resetUrl);
         break;
 
       case "job-application":
-        const { jobApplicationConfirmationTemplate } = await import(
-          "@/lib/email-templates"
-        );
         html = jobApplicationConfirmationTemplate(
           data.userName,
           data.jobTitle,
@@ -51,9 +58,6 @@ export async function POST(request: Request) {
         break;
 
       case "interview-invitation":
-        const { interviewInvitationTemplate } = await import(
-          "@/lib/email-templates"
-        );
         html = interviewInvitationTemplate(
           data.userName,
           data.jobTitle,
@@ -64,7 +68,6 @@ export async function POST(request: Request) {
         break;
 
       case "job-offer":
-        const { jobOfferTemplate } = await import("@/lib/email-templates");
         html = jobOfferTemplate(
           data.userName,
           data.jobTitle,
@@ -98,10 +101,10 @@ export async function POST(request: Request) {
       message: "Email sent successfully",
       emailId: result.data?.id,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Send Email API] Error:", error);
     return Response.json(
-      { error: "Internal server error", details: error },
+      { error: "Internal server error", details: error.message || error },
       { status: 500 }
     );
   }
