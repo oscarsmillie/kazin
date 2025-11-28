@@ -1,12 +1,17 @@
-// Keeping the file for backward compatibility, but it should not be called
+// app/api/auth/send-confirmation-email/route.ts   (or wherever it lives)
+
 export const runtime = "nodejs";
-import { sendEmail } from "@/lib/email";
-import { emailConfirmationTemplate } from "@/lib/email-templates";
+export const dynamic = "force-dynamic";   // Critical — skips during next build
+
+// DO NOT import sendEmail or templates at the top level
+// → they likely create Resend client on import → kills build
 
 export async function POST(req: Request) {
   try {
-    console.log("[v0] DEPRECATED: send-confirmation-email route called. Confirmation emails are now sent automatically by Supabase/Brevo.")
-    
+    console.log(
+      "[v0] DEPRECATED: send-confirmation-email route called. Confirmation emails are now sent automatically by Supabase/Brevo."
+    );
+
     const { email, fullName } = await req.json();
 
     if (!email || !fullName) {
@@ -16,8 +21,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // This is now handled by Supabase SMTP, but kept for backward compatibility
+    // Lazy-load everything — only when actually called
+    const [{ sendEmail }, { emailConfirmationTemplate }] = await Promise.all([
+      import("@/lib/email"),
+      import("@/lib/email-templates"),
+    ]);
+
     const html = emailConfirmationTemplate(fullName, "");
+
     const result = await sendEmail({
       to: email,
       subject: "Confirm Your KaziNest Email Address",
@@ -35,10 +46,10 @@ export async function POST(req: Request) {
 
     console.log("[v0] Confirmation email sent (backup):", { email });
     return Response.json({ success: true, data: result.data });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[v0] Confirmation email route error:", error);
     return Response.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", details: error.message },
       { status: 500 }
     );
   }
