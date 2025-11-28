@@ -1,0 +1,49 @@
+# Cloud Build Configuration File (cloudbuild.yaml)
+#
+# This file defines the steps for Google Cloud Build to execute a pipeline:
+# 1. Run a simple echo command.
+# 2. Build a Docker image named 'kazinest-backend'.
+# 3. Push the built image to Google Container Registry (GCR) in the 'kazinest' project.
+
+# --- Build Steps ---
+steps:
+  # 1. Run 'echo "hello world"' using the Ubuntu base image.
+  - id: 'ECHO MESSAGE'
+    name: 'ubuntu'
+    args:
+      - echo
+      - hello world
+
+  # 2. Build the Docker image.
+  # The resulting image will be tagged as gcr.io/kazinest/kazinest-backend:[COMMIT_SHA]
+  - id: 'BUILD DOCKER IMAGE'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/${PROJECT_ID}/kazinest-backend:$COMMIT_SHA' # Image Name: kazinest-backend
+      - '.' # Build context is the current directory
+
+  # 3. Push the built Docker image to the Container Registry (GCR).
+  - id: 'PUSH DOCKER IMAGE'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/${PROJECT_ID}/kazinest-backend:$COMMIT_SHA'
+
+# --- Configuration to Prevent Service Account/Logging Error (MANDATORY) ---
+
+# 4. Specify the custom service account (704739078610-compute@developer.gserviceaccount.com)
+# for this build to use, which is required when using CLOUD_LOGGING_ONLY option.
+service_account: 'projects/kazinest/serviceAccounts/704739078610-compute@developer.gserviceaccount.com'
+
+# 5. Specify logging configuration to satisfy the requirement when a custom service account is used.
+options:
+  # CLOUD_LOGGING_ONLY streams logs directly to Cloud Logging.
+  logging: CLOUD_LOGGING_ONLY
+
+# --- Artifacts ---
+
+# 6. Specify the resulting container image for Cloud Build's artifact reporting.
+images:
+  - 'gcr.io/${PROJECT_ID}/kazinest-backend:$COMMIT_SHA'
