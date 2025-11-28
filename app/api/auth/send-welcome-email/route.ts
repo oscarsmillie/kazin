@@ -1,12 +1,13 @@
+// app/api/auth/welcome-email/route.ts  (or wherever it is)
+
 export const runtime = "nodejs";
-import { sendEmail } from "@/lib/email";
-import { welcomeEmailTemplate } from "@/lib/email-templates";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const { email, fullName, dashboardUrl } = await req.json();
+    console.log("[v0] Welcome email request received");
 
-    console.log("[v0] Welcome email request:", { email, fullName });
+    const { email, fullName, dashboardUrl } = await req.json();
 
     if (!email || !fullName) {
       console.error("[v0] Missing required fields for welcome email");
@@ -16,9 +17,15 @@ export async function POST(req: Request) {
       );
     }
 
+    // Lazy load — only when actually called
+    const [{ sendEmail }, { welcomeEmailTemplate }] = await Promise.all([
+      import("@/lib/email"),
+      import("@/lib/email-templates"),
+    ]);
+
     const html = welcomeEmailTemplate(fullName, dashboardUrl);
     console.log("[v0] Sending welcome email via Resend...");
-    
+
     const result = await sendEmail({
       to: email,
       subject: "Welcome to KaziNest - Your AI Career Companion!",
@@ -27,19 +34,19 @@ export async function POST(req: Request) {
     });
 
     if (!result.success) {
-      console.error("[v0] Welcome email failed to send:", { error: result.error, email });
+      console.error("[v0] Welcome email failed:", result.error);
       return Response.json(
         { error: "Failed to send welcome email" },
         { status: 500 }
       );
     }
 
-    console.log("[v0] Welcome email sent successfully:", { email, messageId: result.data?.id });
+    console.log("[v0] Welcome email sent:", { email, messageId: result.data?.id });
     return Response.json({ success: true, data: result.data });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[v0] Welcome email route error:", error);
     return Response.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", details: error.message },
       { status: 500 }
     );
   }
