@@ -1,13 +1,10 @@
 // app/api/guest-resume-download/route.ts
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";   // THIS SAVES YOUR LIFE
+export const dynamic = "force-dynamic";
 
 import { type NextRequest, NextResponse } from "next/server";
 import { generatePdfFromHtml } from "@/lib/server-pdf-generator";
-
-// DO NOT CREATE SUPABASE CLIENT AT TOP LEVEL — EVER
-// const supabase = createClient(...)  ← NEVER AGAIN
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Resume ID is required" }, { status: 400 });
     }
 
-    // LAZY LOAD SUPABASE — ONLY WHEN ACTUALLY NEEDED
+    // Lazy load Supabase
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,15 +44,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Template not specified" }, { status: 400 });
     }
 
-    // Download template
+    // Download template — use templateFileName to avoid conflict
     const templateId = resume.template_id.replace(/^\/+|\/+$/g, "");
-    const fileName = templateId.endsWith(".htm") || templateId.endsWith(".html")
+    const templateFileName = templateId.endsWith(".htm") || templateId.endsWith(".html")
       ? templateId
       : `${templateId}.htm`;
 
     const { data: file, error: storageError } = await supabase.storage
       .from("templates")
-      .download(fileName);
+      .download(templateFileName);
 
     if (storageError || !file) {
       console.error("[v0] Template download failed:", storageError);
@@ -66,7 +63,7 @@ export async function GET(request: NextRequest) {
     const cssMatch = htmlContent.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
     const cssStyles = cssMatch ? cssMatch[1] : "";
 
-    // Parse resume data safely
+    // Parse resume data
     let contentData: any = {};
     try {
       contentData = typeof resume.resume_data === "string"
@@ -108,7 +105,7 @@ export async function GET(request: NextRequest) {
 
     let html = htmlContent;
 
-    // Replace simple placeholders
+    // Replace placeholders
     html = safeReplace(html, "FULL_NAME", info.fullName || `${info.firstName || ""} ${info.lastName || ""}`.trim());
     html = safeReplace(html, "NAME", info.firstName || "");
     html = safeReplace(html, "SURNAME", info.lastName || "");
@@ -123,7 +120,7 @@ export async function GET(request: NextRequest) {
     html = safeReplace(html, "PORTFOLIO", info.portfolio || "");
     html = safeReplace(html, "PROFESSIONAL_SUMMARY", normalizedData.professionalSummary);
 
-    // Render loops
+    // Render loops (EXPERIENCE, EDUCATION, etc.)
     html = renderBlock(html, "EXPERIENCE", normalizedData.workExperience, (exp, block) =>
       block
         .replace(/{JOB_TITLE}/g, exp.jobTitle || exp.role || "")
@@ -172,7 +169,7 @@ export async function GET(request: NextRequest) {
         .replace(/{REFERENCE_PHONE}/g, r.phone || "")
     );
 
-    html = html.replace(/{[^}]+}/g, ""); // Remove any leftover placeholders
+    html = html.replace(/{[^}]+}/g, ""); // Remove leftover placeholders
 
     const fullHtml = `
       <!DOCTYPE html>
@@ -189,7 +186,8 @@ export async function GET(request: NextRequest) {
         <body>${html}</body>
       </html>`;
 
-    const { pdf: pdfBase64, name: fileName } = await generatePdfFromHtml(fullHtml, resume.title);
+    // RENAMED: name → pdfFileName to avoid conflict
+    const { pdf: pdfBase64, name: pdfFileName } = await generatePdfFromHtml(fullHtml, resume.title);
 
     const pdfBuffer = Buffer.from(pdfBase64, "base64");
 
@@ -204,7 +202,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(pdfBuffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Disposition": `attachment; filename="${pdfFileName}"`,
         "Cache-Control": "no-store",
       },
     });
