@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{name}} - Resume</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #fff;
+            padding: 40px;
+        }
+        
+        .resume {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2d5a27 0%, #4a7c59 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+        
+        .header .contact {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+        }
+        
+        .section h2 {
+            color: #2d5a27;
+            font-size: 1.4em;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #4a7c59;
+        }
+        
+        .summary {
+            font-size: 1.1em;
+            line-height: 1.7;
+            color: #555;
+        }
+        
+        .experience-item, .education-item {
+            margin-bottom: 20px;
+            padding-left: 20px;
+            border-left: 3px solid #4a7c59;
+        }
+        
+        .experience-item h3, .education-item h3 {
+            color: #2d5a27;
+            font-size: 1.2em;
+            margin-bottom: 5px;
+        }
+        
+        .company, .school {
+            font-weight: bold;
+            color: #666;
+        }
+        
+        .date {
+            color: #888;
+            font-style: italic;
+            float: right;
+        }
+        
+        .skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .skill {
+            background: #f0f8f0;
+            color: #2d5a27;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            border: 1px solid #4a7c59;
+        }
+        
+        @media print {
+            body { padding: 0; }
+            .resume { box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="resume">
+        <div class="header">
+            <h1>{{name}}</h1>
+            <div class="contact">
+                {{email}} | {{phone}} | {{location}}
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2>Professional Summary</h2>
+                <div class="summary">
+                    {{summary}}
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>Work Experience</h2>
+                <div class="experience-item">
+                    <div class="date">{{experience1_start_date}} - {{experience1_end_date}}</div>
+                    <h3>{{experience1_title}}</h3>
+                    <div class="company">{{experience1_company}}</div>
+                    <p>{{experience1_description}}</p>
+                </div>
+                
+                <div class="experience-item">
+                    <div class="date">{{experience2_start_date}} - {{experience2_end_date}}</div>
+                    <h3>{{experience2_title}}</h3>
+                    <div class="company">{{experience2_company}}</div>
+                    <p>{{experience2_description}}</p>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>Education</h2>
+                <div class="education-item">
+                    <div class="date">{{education1_start_date}} - {{education1_end_date}}</div>
+                    <h3>{{education1_degree}}</h3>
+                    <div class="school">{{education1_school}}</div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>Skills</h2>
+                <div class="skills">
+                    <span class="skill">JavaScript</span>
+                    <span class="skill">React</span>
+                    <span class="skill">Node.js</span>
+                    <span class="skill">{{skills}}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,100 @@
+/**
+ * KAZINEST - PDF FLOW UTILITIES
+ * ---------------------------------------------------------
+ * This file ensures a reliable flow for resume generation:
+ * 1. Save user input to Supabase via /api/save-resume.
+ * 2. Call /api/generate-pdf-playwright to render final HTML → PDF.
+ * 3. Return both final HTML preview & Base64 PDF for download.
+ *
+ * Works seamlessly with Next.js + Supabase + pdf-lib.
+ */
+
+// --- 1. DATABASE SAVE STEP ---
+export const saveResumeDataToDatabase = async (data, resumeId, templateId, resumeTitle) => {
+  console.log("🟡 Step 1: Saving current resume data to Supabase...");
+
+  const response = await fetch("/api/save-resume", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      resumeId,
+      templateId,
+      resumeTitle,
+      resumeData: data,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Unknown server error" }));
+    throw new Error(`❌ Database save failed: ${error.error}`);
+  }
+
+  const saved = await response.json();
+  console.log("✅ Step 1 Complete: Data saved successfully.");
+  return saved.resumeData || data;
+};
+
+// --- 2. PDF GENERATION STEP ---
+export const generatePDF = async (templateId, resumeData, resumeTitle) => {
+  console.log("🟡 Step 2: Generating PDF using /api/generate-pdf-playwright...");
+
+    // Ensure all data points are present and typed correctly before sending.
+    if (typeof templateId !== 'string' || !templateId) {
+        throw new Error("Template ID is required for PDF generation.");
+    }
+    const dataToSend = resumeData || {};
+    const titleToSend = resumeTitle || 'Untitled Resume';
+
+  const response = await fetch("/api/generate-pdf-playwright", { 
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ 
+        templateId, 
+        resumeData: dataToSend, 
+        resumeTitle: titleToSend
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Unknown PDF API error" }));
+    throw new Error(`❌ PDF Generation Error: ${error.error}`);
+  }
+
+  const result = await response.json();
+  console.log("✅ Step 2 Complete: PDF Base64 and HTML received.");
+
+  return {
+    finalHtml: result.html || "",
+    pdfBase64Data: result.pdf || "",
+    pdfFileName: `${titleToSend.replace(/\s/g, '_')}_Resume.pdf`,
+  };
+};
+
+// --- 3. FULL SAVE → GENERATE FLOW ---
+export const handleGenerateAndPreview = async (currentUnsavedData, templateId, resumeTitle, resumeId) => {
+  try {
+    console.log("🚀 Starting full Save → Generate → Preview flow...");
+
+    // A: Save user data first (ensures complete data before generation)
+    const finalizedResumeData = await saveResumeDataToDatabase(
+      currentUnsavedData,
+      resumeId,
+      templateId,
+      resumeTitle
+    );
+
+    // B: Generate PDF from saved data
+    const result = await generatePDF(
+      templateId,
+      finalizedResumeData,
+      resumeTitle
+    );
+
+    console.log("🎉 Flow Complete: Ready to display preview & download.");
+    return result; 
+
+  } catch (error) {
+    console.error("❌ Download flow failed:", error.message);
+    throw error;
+  }
+};
