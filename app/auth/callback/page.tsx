@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle, XCircle } from 'lucide-react'
-import { sendWelcomeEmail } from "@/lib/email-service"
 
 export default function AuthCallback() {
   const router = useRouter()
@@ -21,87 +20,76 @@ export default function AuthCallback() {
         const error = searchParams.get("error")
         const errorDescription = searchParams.get("error_description")
 
-        console.log("[v0] Auth callback - Code:", code ? "present" : "missing", "Error:", error)
+        console.log("[AuthCallback] OAuth params:", { hasCode: !!code, error })
 
         if (error) {
-          console.error("[v0] OAuth error:", errorDescription)
+          console.error("[AuthCallback] OAuth error:", errorDescription)
           setStatus("error")
-          setMessage(errorDescription || error || "Authentication failed. Please try again.")
+          setMessage(errorDescription || error || "Authentication failed.")
           return
         }
 
         if (!code) {
-          // Check if user is already authenticated
-          const {
-            data: { session },
-          } = await supabase.auth.getSession()
+          // Check if already logged in
+          const { data: { session } } = await supabase.auth.getSession()
 
-          if (session) {
-            console.log("[v0] User already authenticated")
+          if (session?.user) {
             setStatus("success")
-            setMessage("Already authenticated! Redirecting...")
-            
+            setMessage("Already signed in! Redirecting...")
+
+            // Lazy-load email sender to avoid SSR issues
             try {
+              const { sendWelcomeEmail } = await import("@/lib/email-service")
               const user = session.user
-              if (user.email && user.user_metadata?.full_name) {
-                await sendWelcomeEmail(
-                  user.email,
-                  user.user_metadata.full_name,
-                  `${window.location.origin}/dashboard`
-                )
-              }
-            } catch (emailError) {
-              console.warn("[v0] Welcome email failed:", emailError)
+              const name = user.user_metadata?.full_name || user.email?.split("@")[0] || "there"
+              await sendWelcomeEmail(user.email!, name, `${window.location.origin}/dashboard`)
+            } catch (emailErr) {
+              console.warn("[AuthCallback] Welcome email failed (non-critical):", emailErr)
             }
-            
-            setTimeout(() => {
-              router.push("/dashboard")
-            }, 1000)
-          } else {
-            setStatus("error")
-            setMessage("No authentication code provided. Please try signing in again.")
+
+            setTimeout(() => router.push("/dashboard"), 1000)
+            return
           }
+
+          setStatus("error")
+          setMessage("No authentication code found. Please sign in again.")
           return
         }
 
-        console.log("[v0] Exchanging code for session...")
+        // Exchange code for session
+        console.log("[AuthCallback] Exchanging code for session...")
         const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
-        if (exchangeError) {
-          console.error("[v0] Code exchange error:", exchangeError)
+        if (exchangeError || !data.session) {
+          console.error("[AuthCallback] Code exchange failed:", exchangeError)
           setStatus("error")
-          setMessage(exchangeError.message || "Failed to exchange authentication code")
+          setMessage(exchangeError?.message || "Authentication failed")
           return
         }
 
-        if (data.session) {
-          console.log("[v0] Session established")
-          setStatus("success")
-          setMessage("Authentication successful! Redirecting...")
+        setStatus("success")
+        setMessage("Signed in successfully! Redirecting...")
 
-          try {
-            const user = data.session.user
-            if (user.email && (user.user_metadata?.full_name || user.email)) {
-              await sendWelcomeEmail(
-                user.email,
-                user.user_metadata?.full_name || user.email.split("@")[0],
-                `${window.location.origin}/dashboard`
-              )
-              console.log("[v0] Welcome email sent for social login")
-            }
-          } catch (emailError) {
-            console.warn("[v0] Welcome email failed (non-critical):", emailError)
-          }
-
-          // Wait a moment then redirect
-          setTimeout(() => {
-            router.push("/dashboard")
-          }, 2000)
+        // Send welcome email after successful login
+        try {
+          const { sendWelcomeEmail } = await import("@/lib/email-service")
+          const user = data.session.user
+          const name = user.user_metadata?.full_name || user.email?.email?.split("@")[0] || "there"
+          await sendWelcomeEmail(user.email!, name, `${window.location.origin}/dashboard`)
+          console.log("[AuthCallback] Welcome email sent")
+        } catch (emailErr) {
+          console.warn("[AuthCallback] Failed to send welcome email:", emailErr)
         }
-      } catch (error) {
-        console.error("[v0] Auth callback error:", error)
+
+        // Redirect after short delay
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 2000)
+
+      } catch (err: any) {
+        console.error("[AuthCallback] Unexpected error:", err)
         setStatus("error")
-        setMessage(error instanceof Error ? error.message : "An unexpected error occurred")
+        setMessage("Something went wrong. Please try again.")
       }
     }
 
@@ -112,24 +100,27 @@ export default function AuthCallback() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="flex items-center justify-center gap-2">
-            {status === "loading" && <Loader2 className="h-5 w-5 animate-spin" />}
-            {status === "success" && <CheckCircle className="h-5 w-5 text-green-500" />}
-            {status === "error" && <XCircle className="h-5 w-5 text-red-500" />}
-
-            {status === "loading" && "Processing..."}
-            {status === "success" && "Success!"}
-            {status === "error" && "Authentication Failed"}
+          <CardTitle className="flex items-center justify-center gap-3 text-xl">
+            {status === "loading" && <Loader2 className="h-6 w-6 animate-spin" />}
+            {status === "success" && <CheckCircle className="h-6 w-6 text-green-600" />}
+            {status === "error" && <XCircle className="h-6 w-6 text-red-600" />}
+            <span>
+              {status === "loading" && "Signing you in..."}
+              {status === "success" && "Welcome!"}
+              {status === "error" && "Sign in failed"}
+            </span>
           </CardTitle>
-          <CardDescription>{message || "Please wait while we process your authentication..."}</CardDescription>
+          <CardDescription className="mt-2">
+            {message || "Please wait while we complete your authentication..."}
+          </CardDescription>
         </CardHeader>
 
         {status === "error" && (
-          <CardContent className="text-center">
-            <Button onClick={() => router.push("/auth")} className="w-full">
-              Try Again
+          <CardContent className="text-center pb-6">
+            <Button onClick={() => router.push("/auth")} variant="default" className="w-full max-w-xs">
+              Back to Sign In
             </Button>
-          </CardContent>
+          </Content>
         )}
       </Card>
     </div>
