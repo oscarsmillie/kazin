@@ -2,7 +2,10 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // --- Existing Configurations (Intact) ---
+  // THIS LINE IS THE FIX — REQUIRED FOR DOCKER + STANDALONE BUILD
+  output: "standalone",
+
+  // --- Your existing (perfect) config ---
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -12,39 +15,32 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  
+
   webpack: (config, { isServer }) => {
-    // 1. Client-Side (isServer === false) Fix: 
+    // 1. Client-side: prevent bundling server-only packages
     if (!isServer) {
       config.resolve.fallback = {
         ...(config.resolve.fallback || {}),
         puppeteer: false,
-        // Remove the old package, but keep 'puppeteer' false for the browser side
-        'chrome-aws-lambda': false, 
-        '@sparticuz/chromium': false, // Add the new package to the browser-side ignore list
+        "puppeteer-core": false,
+        "@sparticuz/chromium": false,
+        "chrome-aws-lambda": false,
       };
     }
 
-    // ---
-    // 2. Server-Side (isServer === true) Fixes
-    // ---
-
+    // 2. Server-side: externalize heavy Chromium packages
     if (isServer) {
-      // 🚨 CRITICAL FIX UPDATED: Externalize the new package name.
-      // This solves the 'Module not found' errors by preventing Webpack 
-      // from bundling the packages needed for the serverless environment.
-      config.externals.push('@sparticuz/chromium', 'puppeteer-core');
-
-
-      // Server-Side Map File Fix (Left intact, although usually not necessary 
-      // for @sparticuz/chromium, it ensures compatibility if needed.)
-      // Note: If you encounter new build warnings, you may choose to remove this block later.
-      config.module.rules.push({
-        test: /\.js\.map$/,
-        // This path is technically for the old package, but leaving for robustness.
-        include: /node_modules[\\/]chrome-aws-lambda[\\/]build/, 
-        type: 'asset/source', 
-      });
+      // This prevents Webpack from trying to bundle them → fixes Module not found
+      config.externals = config.externals || [];
+      if (Array.isArray(config.externals)) {
+        config.externals.push(
+          "puppeteer-core",
+          "@sparticuz/chromium"
+        );
+      } else if (typeof config.externals === "object") {
+        config.externals["puppeteer-core"] = "commonjs puppeteer-core";
+        config.externals["@sparticuz/chromium"] = "commonjs @sparticuz/chromium";
+      }
     }
 
     return config;
