@@ -120,7 +120,7 @@ export default function AuthCallback() {
             <Button onClick={() => router.push("/auth")} variant="default" className="w-full max-w-xs">
               Back to Sign In
             </Button>
-          </Content>
+          </CardContent>
         )}
       </Card>
     </div>
